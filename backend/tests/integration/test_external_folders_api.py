@@ -270,6 +270,55 @@ class TestExternalFolderScan:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_scan_skips_excluded_directory_names(
+        self, async_client: AsyncClient, db_session, external_dir, monkeypatch
+    ):
+        """Configured name globs are skipped anywhere in the external tree."""
+        monkeypatch.setenv("BAMBUDDY_EXTERNAL_DIR_EXCLUDE_PATTERNS", "@eaDir,cache-*")
+
+        ea_dir = external_dir / "@eaDir"
+        ea_dir.mkdir()
+        (ea_dir / "ignored.stl").write_bytes(b"ignored")
+
+        nested_parent = external_dir / "nested"
+        nested_parent.mkdir()
+        nested_ea = nested_parent / "@eaDir"
+        nested_ea.mkdir()
+        (nested_ea / "ignored-too.stl").write_bytes(b"ignored")
+
+        cache_dir = external_dir / "cache-temp"
+        cache_dir.mkdir()
+        (cache_dir / "ignored-cache.stl").write_bytes(b"ignored")
+
+        response = await async_client.post(
+            "/api/v1/library/folders/external",
+            json={
+                "name": "Exclude Dirs Test",
+                "external_path": str(external_dir),
+                "readonly": True,
+                "show_hidden": False,
+            },
+        )
+        folder = response.json()
+
+        response = await async_client.post(f"/api/v1/library/folders/{folder['id']}/scan")
+        assert response.status_code == 200
+
+        response = await async_client.get("/api/v1/library/folders")
+        names = collect_folder_names(response.json())
+        assert "@eaDir" not in names
+        assert "cache-temp" not in names
+
+        response = await async_client.get(f"/api/v1/library/files?folder_id={folder['id']}&recursive=true")
+        assert response.status_code == 200
+        filenames = {f["filename"] for f in response.json()}
+        assert "ignored.stl" not in filenames
+        assert "ignored-too.stl" not in filenames
+        assert "ignored-cache.stl" not in filenames
+        assert {"benchy.3mf", "bracket.stl", "print.gcode", "nested.stl"} <= filenames
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_scan_idempotent(self, async_client: AsyncClient, db_session, external_folder):
         """Verify scanning twice doesn't duplicate files."""
         response1 = await async_client.post(f"/api/v1/library/folders/{external_folder['id']}/scan")

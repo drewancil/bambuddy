@@ -26,6 +26,7 @@ from backend.app.core.auth import (
     require_ownership_permission,
     require_permission_if_auth_enabled,
 )
+from backend.app.core.config import is_excluded_external_dir_name
 from backend.app.core.config import settings as app_settings
 from backend.app.core.database import async_session, get_db
 from backend.app.core.permissions import Permission
@@ -1657,6 +1658,7 @@ async def scan_external_folder(
         # Filter hidden directories unless configured
         if not folder.external_show_hidden:
             dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        dirnames[:] = [d for d in dirnames if not is_excluded_external_dir_name(d)]
 
         rel_dir = str(Path(dirpath).relative_to(ext_path))
         if rel_dir == ".":
