@@ -1,6 +1,7 @@
 import logging
 import os
 import re as _re
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 from pydantic import Field
@@ -112,6 +113,7 @@ class Settings(BaseSettings):
     # setting.
     slicer_api_url: str = "http://localhost:3003"
     bambu_studio_api_url: str = "http://localhost:3001"
+    external_dir_exclude_patterns_raw: str = ""
 
     class Config:
         env_file = ".env"
@@ -123,6 +125,26 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def external_dir_exclude_patterns() -> tuple[str, ...]:
+    """Return normalized external-directory exclude patterns from env.
+
+    Comma-separated, name-only globs. Empty entries are ignored.
+    """
+    patterns: list[str] = []
+    for entry in settings.external_dir_exclude_patterns_raw.split(","):
+        pattern = entry.strip()
+        if pattern:
+            patterns.append(pattern)
+    return tuple(patterns)
+
+
+def is_excluded_external_dir_name(name: str) -> bool:
+    """Return True when ``name`` matches any configured exclude pattern."""
+    if not name:
+        return False
+    return any(fnmatchcase(name, pattern) for pattern in external_dir_exclude_patterns())
 
 # S6: Warn on unknown MFA_*/BAMBUDDY_* env vars so typos like MFA_ENCYPTION_KEY
 # are not silently swallowed by ``extra = "ignore"``. The original Pydantic
