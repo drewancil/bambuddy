@@ -113,7 +113,6 @@ class Settings(BaseSettings):
     # setting.
     slicer_api_url: str = "http://localhost:3003"
     bambu_studio_api_url: str = "http://localhost:3001"
-    external_dir_exclude_patterns_raw: str = ""
 
     class Config:
         env_file = ".env"
@@ -132,8 +131,9 @@ def external_dir_exclude_patterns() -> tuple[str, ...]:
 
     Comma-separated, name-only globs. Empty entries are ignored.
     """
+    raw = os.environ.get("BAMBUDDY_EXTERNAL_DIR_EXCLUDE_PATTERNS", "")
     patterns: list[str] = []
-    for entry in settings.external_dir_exclude_patterns_raw.split(","):
+    for entry in raw.split(","):
         pattern = entry.strip()
         if pattern:
             patterns.append(pattern)
